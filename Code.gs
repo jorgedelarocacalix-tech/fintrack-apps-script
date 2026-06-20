@@ -2,13 +2,25 @@
 // Code.gs — Entry point de Fintrack La Roca
 // ============================================================
 
+// Sirve la app web cuando se accede a la URL pública
+function doGet() {
+  return HtmlService.createTemplateFromFile('Sidebar')
+    .evaluate()
+    .setTitle('Fintrack La Roca')
+    .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
+}
+
+function include(filename) {
+  return HtmlService.createHtmlOutputFromFile(filename).getContent();
+}
+
+// Menú opcional en el Sheet (por si Jorge también lo quiere desde ahí)
 function onOpen() {
   SpreadsheetApp.getUi()
     .createMenu('Fintrack')
     .addItem('Abrir dashboard', 'abrirSidebar')
     .addSeparator()
     .addItem('Crear hoja Proveedores', 'crearHojaProveedores')
-    .addItem('Sincronizar datos', 'sincronizarDatos')
     .toUi();
 }
 
@@ -20,10 +32,3 @@ function abrirSidebar() {
   SpreadsheetApp.getUi().showSidebar(html);
 }
 
-function include(filename) {
-  return HtmlService.createHtmlOutputFromFile(filename).getContent();
-}
-
-function sincronizarDatos() {
-  abrirSidebar();
-}
