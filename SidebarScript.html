@@ -1,0 +1,553 @@
+<script>
+// ── Estado global ──────────────────────────────────────
+var STATE = {
+  datos: null,
+  tabMain: 'tarjetas',    // 'tarjetas' | 'proveedores'
+  tabSub: 'resumen',      // 'resumen' | 'jorge' | 'isis' | 'calendario' | 'agregar' | 'lista'
+  cargando: false
+};
+
+// ── Catálogo de proveedores (editable desde UI) ────────
+var CATALOGO_PROVEEDORES = [
+  'Italika', 'Diunsa', 'Jetstereo', 'Motomundo', 'Ultra Motor',
+  'La Roca Comercial', 'Movesa', 'Ferretería El Baratillo'
+];
+
+// ── Init ───────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', function() {
+  cargarDatos();
+});
+
+function cargarDatos() {
+  STATE.cargando = true;
+  mostrarCargando();
+  google.script.run
+    .withSuccessHandler(function(resp) {
+      STATE.cargando = false;
+      if (resp.ok) {
+        STATE.datos = resp.datos;
+        renderizarTodo();
+      } else {
+        mostrarError('Error cargando datos: ' + resp.error);
+      }
+    })
+    .withFailureHandler(function(err) {
+      STATE.cargando = false;
+      mostrarError('Error de conexión: ' + (err.message || err));
+    })
+    .cargarDatos();
+}
+
+// ── Navegación ─────────────────────────────────────────
+function irATab(main, sub) {
+  STATE.tabMain = main;
+  STATE.tabSub = sub || (main === 'tarjetas' ? 'resumen' : 'resumen');
+  renderizarTodo();
+}
+
+// ── Renderizado principal ──────────────────────────────
+function renderizarTodo() {
+  if (!STATE.datos) return;
+
+  actualizarMes();
+  renderizarTabsMain();
+  renderizarTabsSub();
+  renderizarSeccion();
+}
+
+function actualizarMes() {
+  var el = document.getElementById('mes-label');
+  if (el && STATE.datos.mes) el.textContent = capitalizar(STATE.datos.mes);
+}
+
+function renderizarTabsMain() {
+  document.querySelectorAll('.tab-main').forEach(function(t) {
+    t.classList.remove('active-tarjetas', 'active-proveedores');
+    if (t.dataset.tab === STATE.tabMain) {
+      t.classList.add('active-' + STATE.tabMain);
+    }
+  });
+}
+
+function renderizarTabsSub() {
+  var container = document.getElementById('tabs-sub-container');
+  if (!container) return;
+
+  if (STATE.tabMain === 'tarjetas') {
+    container.innerHTML = '<div class="tabs-sub" id="tabs-sub">' +
+      tabSub('resumen', 'Resumen') +
+      tabSub('jorge', 'Jorge') +
+      tabSub('isis', 'Isis') +
+      tabSub('calendario', 'Calendario') +
+      '</div>';
+  } else {
+    container.innerHTML = '<div class="tabs-sub proveedores-sub" id="tabs-sub">' +
+      tabSub('resumen', 'Resumen') +
+      tabSub('agregar', '+ Agregar') +
+      tabSub('lista', 'Lista') +
+      '</div>';
+  }
+
+  document.querySelectorAll('.tab-sub').forEach(function(t) {
+    t.classList.toggle('active', t.dataset.sub === STATE.tabSub);
+    t.onclick = function() { STATE.tabSub = t.dataset.sub; renderizarSeccion(); renderizarTabsSub(); };
+  });
+}
+
+function tabSub(id, label) {
+  return '<span class="tab-sub" data-sub="' + id + '">' + label + '</span>';
+}
+
+function renderizarSeccion() {
+  var contenedor = document.getElementById('contenido-principal');
+  if (!contenedor) return;
+
+  var d = STATE.datos;
+
+  if (STATE.tabMain === 'tarjetas') {
+    if (STATE.tabSub === 'resumen') {
+      contenedor.innerHTML = renderResumenTarjetas(d);
+    } else if (STATE.tabSub === 'jorge') {
+      contenedor.innerHTML = renderListaTarjetas(d.tarjetas.jorge, 'jorge');
+    } else if (STATE.tabSub === 'isis') {
+      contenedor.innerHTML = renderListaTarjetas(d.tarjetas.isis, 'isis');
+    } else if (STATE.tabSub === 'calendario') {
+      contenedor.innerHTML = renderCalendario(d);
+    }
+  } else {
+    if (STATE.tabSub === 'resumen') {
+      contenedor.innerHTML = renderResumenProveedores(d);
+    } else if (STATE.tabSub === 'agregar') {
+      contenedor.innerHTML = renderFormularioProveedor();
+    } else if (STATE.tabSub === 'lista') {
+      contenedor.innerHTML = renderListaProveedores(d.proveedores);
+    }
+  }
+}
+
+// ── Resumen tarjetas ───────────────────────────────────
+function renderResumenTarjetas(d) {
+  var todas = d.tarjetas.jorge.concat(d.tarjetas.isis);
+  var urgentes = todas.filter(function(t) { return t.urgencia === 'urgente' || t.urgencia === 'mora'; });
+  var proximas = todas.filter(function(t) { return t.urgencia === 'proximo'; });
+  var pagadas  = todas.filter(function(t) { return t.urgencia === 'pagado'; });
+
+  // Ordenar: mora > urgente > proximo > ok > pagado > sin-fecha
+  var ordenUrgencia = { mora: 0, urgente: 1, proximo: 2, ok: 3, pagado: 4, 'sin-fecha': 5 };
+  var ordenadas = todas.slice().sort(function(a, b) {
+    return (ordenUrgencia[a.urgencia] || 5) - (ordenUrgencia[b.urgencia] || 5);
+  });
+
+  var html = '<div class="resumen-contadores">' +
+    '<div class="contador-chip chip-urgente"><div class="num">' + urgentes.length + '</div><div class="lbl">Urgentes</div></div>' +
+    '<div class="contador-chip chip-proximo"><div class="num">' + proximas.length + '</div><div class="lbl">Próximos</div></div>' +
+    '<div class="contador-chip chip-pagado"><div class="num">' + pagadas.length + '</div><div class="lbl">Pagados</div></div>' +
+    '</div>';
+
+  html += ordenadas.map(function(t) {
+    return renderTarjetaCard(t, t.banco && t.banco.match(/isis|fonseca/i) ? 'isis' : '');
+  }).join('');
+
+  return html;
+}
+
+// ── Lista tarjetas (Jorge o Isis) ──────────────────────
+function renderListaTarjetas(lista, tipo) {
+  if (!lista || lista.length === 0) {
+    return '<div class="loading-msg">No hay tarjetas registradas para ' + capitalizar(tipo) + '.</div>';
+  }
+
+  var ordenUrgencia = { mora: 0, urgente: 1, proximo: 2, ok: 3, pagado: 4, 'sin-fecha': 5 };
+  var ordenadas = lista.slice().sort(function(a, b) {
+    return (ordenUrgencia[a.urgencia] || 5) - (ordenUrgencia[b.urgencia] || 5);
+  });
+
+  var tituloClase = tipo === 'isis' ? 'isis' : '';
+  var titulo = tipo === 'isis' ? 'Tarjetas de Isis Fonseca' : 'Tarjetas de Jorge';
+
+  var html = '<div class="seccion-titulo ' + tituloClase + '">' + titulo + '</div>';
+  html += ordenadas.map(function(t) { return renderTarjetaCard(t, tipo); }).join('');
+  return html;
+}
+
+// ── Card individual de tarjeta ─────────────────────────
+function renderTarjetaCard(t, tipo) {
+  var nombre = t.banco + (t.cuenta ? ' ' + t.cuenta : '');
+  var inicial = (t.banco || '?')[0].toUpperCase();
+  var monto = t.valorAPagar !== null ? 'L ' + formatMonto(t.valorAPagar) : '—';
+  var badge = renderBadge(t.urgencia, t.fechaPago);
+  var claseCard = 'pago-card ' + (t.urgencia || '') + (tipo === 'isis' ? ' isis' : '');
+  if (t.datoIncompleto) claseCard += ' incompleto';
+
+  var usdWarning = t.requiereRevisionUSD ? '<div class="pago-usd-warning">⚠ monto en USD — revisar</div>' : '';
+  var notaHtml = t.nota ? '<div class="pago-nota">' + escHtml(t.nota) + '</div>' : '';
+  var subInfo = t.fechaPago ? 'Pago: ' + formatearFechaISO(t.fechaPago) : 'Sin fecha de pago';
+
+  return '<div class="' + claseCard + '">' +
+    '<div class="pago-icono">' + inicial + '</div>' +
+    '<div class="pago-info">' +
+      '<div class="pago-nombre">' + escHtml(nombre) + '</div>' +
+      '<div class="pago-sub">' + escHtml(subInfo) + '</div>' +
+      notaHtml + usdWarning +
+    '</div>' +
+    '<div class="pago-derecha">' +
+      '<div class="pago-monto">' + monto + '</div>' +
+      badge +
+    '</div>' +
+    '</div>';
+}
+
+// ── Calendario consolidado ─────────────────────────────
+function renderCalendario(d) {
+  var eventos = [];
+
+  d.tarjetas.jorge.forEach(function(t) {
+    if (t.fechaPago) eventos.push({ fecha: t.fechaPago, nombre: t.banco + ' ' + t.cuenta, monto: t.valorAPagar, urgencia: t.urgencia, tipo: 'jorge' });
+  });
+  d.tarjetas.isis.forEach(function(t) {
+    if (t.fechaPago) eventos.push({ fecha: t.fechaPago, nombre: 'Isis – ' + t.banco + ' ' + t.cuenta, monto: t.valorAPagar, urgencia: t.urgencia, tipo: 'isis' });
+  });
+  d.proveedores.forEach(function(p) {
+    if (p.fechaVence) eventos.push({ fecha: p.fechaVence, nombre: p.proveedor, monto: p.monto, urgencia: p.urgencia, tipo: 'proveedor' });
+  });
+
+  if (eventos.length === 0) {
+    return '<div class="loading-msg">No hay eventos con fechas registradas.</div>';
+  }
+
+  // Agrupar por fecha
+  var grupos = {};
+  eventos.forEach(function(e) {
+    if (!grupos[e.fecha]) grupos[e.fecha] = [];
+    grupos[e.fecha].push(e);
+  });
+
+  // Ordenar fechas
+  var fechas = Object.keys(grupos).sort();
+  var hoyISO = new Date().toISOString().slice(0, 10);
+
+  var html = '';
+  fechas.forEach(function(fecha) {
+    var items = grupos[fecha];
+    var esHoy = fecha === hoyISO;
+    var urgenciaGrupo = items.some(function(i) { return i.urgencia === 'urgente' || i.urgencia === 'mora'; }) ? 'urgente' : '';
+    var claseHeader = 'cal-fecha-header' + (esHoy ? ' hoy' : '') + (urgenciaGrupo ? ' urgente' : '');
+
+    html += '<div class="calendario-dia">' +
+      '<div class="' + claseHeader + '">' + (esHoy ? '▶ HOY — ' : '') + formatearFechaISO(fecha) + '</div>';
+
+    items.forEach(function(item) {
+      var icono = item.tipo === 'isis' ? 'I' : (item.tipo === 'proveedor' ? 'P' : 'J');
+      var monto = item.monto !== null ? 'L ' + formatMonto(item.monto) : '—';
+      var claseCard = 'pago-card ' + (item.urgencia || '') + (item.tipo === 'isis' ? ' isis' : '') + (item.tipo === 'proveedor' ? ' proveedor' : '');
+      html += '<div class="' + claseCard + '">' +
+        '<div class="pago-icono">' + icono + '</div>' +
+        '<div class="pago-info"><div class="pago-nombre">' + escHtml(item.nombre) + '</div></div>' +
+        '<div class="pago-derecha"><div class="pago-monto">' + monto + '</div>' + renderBadge(item.urgencia, fecha) + '</div>' +
+        '</div>';
+    });
+
+    html += '</div>';
+  });
+
+  return html;
+}
+
+// ── Resumen proveedores ────────────────────────────────
+function renderResumenProveedores(d) {
+  var provs = d.proveedores || [];
+  var urgentes = provs.filter(function(p) { return p.urgencia === 'urgente' || p.urgencia === 'mora'; });
+  var proximos = provs.filter(function(p) { return p.urgencia === 'proximo'; });
+  var pagados  = provs.filter(function(p) { return p.urgencia === 'pagado'; });
+
+  var ordenUrgencia = { mora: 0, urgente: 1, proximo: 2, ok: 3, pagado: 4, 'sin-fecha': 5 };
+  var ordenados = provs.slice().sort(function(a, b) {
+    return (ordenUrgencia[a.urgencia] || 5) - (ordenUrgencia[b.urgencia] || 5);
+  });
+
+  var html = '<div class="resumen-contadores">' +
+    '<div class="contador-chip chip-urgente"><div class="num">' + urgentes.length + '</div><div class="lbl">Urgentes</div></div>' +
+    '<div class="contador-chip chip-proximo"><div class="num">' + proximos.length + '</div><div class="lbl">Próximos</div></div>' +
+    '<div class="contador-chip chip-pagado"><div class="num">' + pagados.length + '</div><div class="lbl">Pagados</div></div>' +
+    '</div>';
+
+  if (ordenados.length === 0) {
+    html += '<div class="loading-msg">No hay proveedores registrados aún.<br>Usa "+ Agregar" para agregar el primero.</div>';
+  } else {
+    html += ordenados.map(function(p) { return renderProveedorCard(p); }).join('');
+  }
+
+  return html;
+}
+
+// ── Card individual de proveedor ───────────────────────
+function renderProveedorCard(p) {
+  var inicial = (p.proveedor || '?')[0].toUpperCase();
+  var monto = p.monto !== null ? 'L ' + formatMonto(p.monto) : '—';
+  var badge = renderBadge(p.urgencia, p.fechaVence);
+  var subInfo = p.fechaVence ? 'Vence: ' + formatearFechaISO(p.fechaVence) : 'Sin fecha';
+  var cat = p.categoria ? ' · ' + p.categoria : '';
+
+  return '<div class="pago-card ' + (p.urgencia || '') + ' proveedor">' +
+    '<div class="pago-icono">' + inicial + '</div>' +
+    '<div class="pago-info">' +
+      '<div class="pago-nombre">' + escHtml(p.proveedor) + '</div>' +
+      '<div class="pago-sub">' + escHtml(subInfo + cat) + '</div>' +
+      (p.nota ? '<div class="pago-nota">' + escHtml(p.nota) + '</div>' : '') +
+    '</div>' +
+    '<div class="pago-derecha">' +
+      '<div class="pago-monto">' + monto + '</div>' +
+      badge +
+    '</div>' +
+    '</div>';
+}
+
+// ── Lista proveedores ──────────────────────────────────
+function renderListaProveedores(proveedores) {
+  if (!proveedores || proveedores.length === 0) {
+    return '<div class="loading-msg">No hay proveedores en la lista.<br>Agrega el primero desde "+ Agregar".</div>';
+  }
+
+  var html = '<div class="seccion-titulo proveedores">Catálogo de proveedores</div>';
+  proveedores.forEach(function(p, idx) {
+    html += '<div class="proveedor-lista-item">' +
+      '<div><div class="proveedor-nombre">' + escHtml(p.proveedor) + '</div><div class="proveedor-cat">' + escHtml(p.categoria || '') + '</div></div>' +
+      (p.estado !== 'pagado' ? '<button class="btn-pagar" onclick="pagarProveedor(' + idx + ')">✓ Pagado</button>' : '<span style="color:#3B6D11;font-size:10px;">✓ Pagado</span>') +
+      '</div>';
+  });
+  return html;
+}
+
+// ── Formulario agregar proveedor ───────────────────────
+function renderFormularioProveedor() {
+  var opcionesProveedor = CATALOGO_PROVEEDORES.map(function(p) {
+    return '<option value="' + escHtml(p) + '">' + escHtml(p) + '</option>';
+  }).join('');
+
+  return '<div class="form-section">' +
+    '<h3>+ Agregar pago a proveedor</h3>' +
+    '<div id="form-mensaje"></div>' +
+    '<div class="form-group">' +
+      '<label>Proveedor</label>' +
+      '<select id="f-proveedor" onchange="onCambiaProveedor(this.value)">' +
+        '<option value="">— Seleccionar —</option>' +
+        opcionesProveedor +
+        '<option value="__nuevo__">+ Agregar nuevo proveedor</option>' +
+      '</select>' +
+    '</div>' +
+    '<div class="form-group" id="grupo-nuevo-proveedor" style="display:none;">' +
+      '<label>Nombre del nuevo proveedor</label>' +
+      '<input type="text" id="f-nuevo-proveedor" placeholder="Ej: Ferretería López">' +
+    '</div>' +
+    '<div class="form-group">' +
+      '<label>Categoría</label>' +
+      '<select id="f-categoria">' +
+        '<option value="">— Seleccionar —</option>' +
+        '<option>Motos / Inventario</option>' +
+        '<option>Electrodomésticos</option>' +
+        '<option>Ferretería / Construcción</option>' +
+        '<option>Interno</option>' +
+        '<option>Otro</option>' +
+      '</select>' +
+    '</div>' +
+    '<div class="form-group">' +
+      '<label>Monto (L)</label>' +
+      '<input type="number" id="f-monto" placeholder="0.00" min="0" step="0.01">' +
+    '</div>' +
+    '<div class="form-group">' +
+      '<label>Fecha de vencimiento</label>' +
+      '<input type="date" id="f-fecha">' +
+    '</div>' +
+    '<div class="form-group">' +
+      '<label>Banco / Forma de pago</label>' +
+      '<select id="f-banco">' +
+        '<option value="">— Seleccionar —</option>' +
+        '<option>BAC</option><option>Atlántida</option><option>Banpaís</option>' +
+        '<option>Ficohsa</option><option>Efectivo</option><option>Transferencia</option>' +
+      '</select>' +
+    '</div>' +
+    '<div class="form-group">' +
+      '<label>Nota (opcional)</label>' +
+      '<input type="text" id="f-nota" placeholder="Ej: cuota 3 de 6, factura #4521">' +
+    '</div>' +
+    '<button class="btn-agregar" id="btn-agregar" onclick="enviarFormProveedor()">Agregar a la hoja</button>' +
+    '</div>';
+}
+
+function onCambiaProveedor(valor) {
+  var grupo = document.getElementById('grupo-nuevo-proveedor');
+  if (grupo) grupo.style.display = valor === '__nuevo__' ? 'block' : 'none';
+}
+
+function enviarFormProveedor() {
+  var proveedorSelect = document.getElementById('f-proveedor').value;
+  var nuevoProveedor = document.getElementById('f-nuevo-proveedor');
+  var proveedor = proveedorSelect === '__nuevo__'
+    ? (nuevoProveedor ? nuevoProveedor.value.trim() : '')
+    : proveedorSelect;
+
+  if (!proveedor) return mostrarMensajeForm('Selecciona o ingresa un proveedor.', false);
+  var monto = document.getElementById('f-monto').value;
+  if (!monto) return mostrarMensajeForm('Ingresa el monto.', false);
+  var fecha = document.getElementById('f-fecha').value;
+
+  // Convertir fecha de yyyy-mm-dd a dd/mm/yyyy para el Sheet
+  var fechaSheet = fecha ? fecha.split('-').reverse().join('/') : '';
+
+  var datos = {
+    proveedor: proveedor,
+    categoria: document.getElementById('f-categoria').value,
+    monto: parseFloat(monto),
+    fechaVence: fechaSheet,
+    bancoPago: document.getElementById('f-banco').value,
+    nota: document.getElementById('f-nota').value.trim()
+  };
+
+  // Agregar al catálogo local si es nuevo
+  if (proveedorSelect === '__nuevo__' && proveedor && CATALOGO_PROVEEDORES.indexOf(proveedor) === -1) {
+    CATALOGO_PROVEEDORES.push(proveedor);
+  }
+
+  var btn = document.getElementById('btn-agregar');
+  if (btn) btn.disabled = true;
+
+  google.script.run
+    .withSuccessHandler(function(resp) {
+      if (btn) btn.disabled = false;
+      if (resp.ok) {
+        mostrarMensajeForm(resp.mensaje, true);
+        setTimeout(function() { cargarDatos(); }, 1500);
+      } else {
+        mostrarMensajeForm(resp.mensaje, false);
+      }
+    })
+    .withFailureHandler(function(err) {
+      if (btn) btn.disabled = false;
+      mostrarMensajeForm('Error: ' + (err.message || err), false);
+    })
+    .agregarProveedorDesideSidebar(datos);
+}
+
+function mostrarMensajeForm(texto, exito) {
+  var el = document.getElementById('form-mensaje');
+  if (!el) return;
+  el.innerHTML = '<div class="' + (exito ? 'exito-msg' : 'error-msg') + '">' + escHtml(texto) + '</div>';
+}
+
+function pagarProveedor(idx) {
+  google.script.run
+    .withSuccessHandler(function(resp) {
+      if (resp.ok) cargarDatos();
+    })
+    .pagarProveedor(idx);
+}
+
+// ── Análisis IA ────────────────────────────────────────
+function solicitarAnalisisIA() {
+  var iaBox = document.getElementById('ia-resultado');
+  if (!iaBox) {
+    // Crear el box si no existe
+    var contenedor = document.getElementById('contenido-principal');
+    if (!contenedor) return;
+    var boxEl = document.createElement('div');
+    boxEl.id = 'ia-resultado';
+    boxEl.className = 'ia-box cargando';
+    boxEl.textContent = 'Analizando con Claude... esto puede tardar unos segundos.';
+    contenedor.insertBefore(boxEl, contenedor.firstChild);
+    iaBox = boxEl;
+  } else {
+    iaBox.className = 'ia-box cargando';
+    iaBox.textContent = 'Analizando con Claude...';
+  }
+
+  google.script.run
+    .withSuccessHandler(function(resp) {
+      if (iaBox) {
+        iaBox.className = 'ia-box';
+        iaBox.textContent = resp.ok ? resp.texto : '⚠ ' + resp.texto;
+      }
+    })
+    .withFailureHandler(function(err) {
+      if (iaBox) {
+        iaBox.className = 'ia-box';
+        iaBox.textContent = '⚠ Error al conectar con la IA: ' + (err.message || err);
+      }
+    })
+    .obtenerAnalisisIA();
+}
+
+// ── Helpers ────────────────────────────────────────────
+function renderBadge(urgencia, fechaISO) {
+  var textos = {
+    mora: '¡En mora!',
+    urgente: '',
+    proximo: '',
+    pagado: 'Pagado',
+    ok: 'Al día',
+    'sin-fecha': 'Sin fecha'
+  };
+  var clases = {
+    mora: 'badge-mora',
+    urgente: 'badge-urgente',
+    proximo: 'badge-proximo',
+    pagado: 'badge-pagado',
+    ok: 'badge-ok',
+    'sin-fecha': 'badge-sinfecha'
+  };
+
+  var texto = textos[urgencia] || '';
+  if ((urgencia === 'urgente' || urgencia === 'proximo') && fechaISO) {
+    var dias = diasHasta(fechaISO);
+    if (dias !== null) {
+      texto = dias === 0 ? '¡Hoy!' : (dias === 1 ? 'Mañana' : 'En ' + dias + ' días');
+    }
+  }
+
+  return '<span class="pago-badge ' + (clases[urgencia] || '') + '">' + texto + '</span>';
+}
+
+function diasHasta(fechaISO) {
+  if (!fechaISO) return null;
+  var hoy = new Date();
+  hoy.setHours(0,0,0,0);
+  var partes = fechaISO.split('-');
+  var dest = new Date(parseInt(partes[0]), parseInt(partes[1])-1, parseInt(partes[2]));
+  return Math.round((dest - hoy) / 86400000);
+}
+
+function formatearFechaISO(fechaISO) {
+  if (!fechaISO) return '—';
+  var meses = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
+  var p = fechaISO.split('-');
+  return parseInt(p[2]) + ' ' + meses[parseInt(p[1])-1] + ' ' + p[0];
+}
+
+function formatMonto(num) {
+  if (num === null || num === undefined) return '—';
+  return Number(num).toLocaleString('es-HN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+function capitalizar(str) {
+  if (!str) return '';
+  return str.charAt(0).toUpperCase() + str.slice(1);
+}
+
+function escHtml(str) {
+  if (!str) return '';
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+function mostrarCargando() {
+  var el = document.getElementById('contenido-principal');
+  if (el) el.innerHTML = '<div class="loading-msg"><div class="spinner"></div>Cargando datos del Sheet...</div>';
+}
+
+function mostrarError(msg) {
+  var el = document.getElementById('contenido-principal');
+  if (el) el.innerHTML = '<div class="error-msg">⚠ ' + escHtml(msg) + '</div>';
+}
+</script>

@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <base target="_top">
+  <meta charset="UTF-8">
+  <?!= include('SidebarStyles') ?>
+</head>
+<body>
+
+  <!-- HEADER -->
+  <div class="header">
+    <h1>Fintrack La Roca</h1>
+    <div class="mes-label" id="mes-label">Cargando...</div>
+    <div class="header-actions">
+      <button class="btn-sync" onclick="cargarDatos()">↻ Sincronizar</button>
+      <button class="btn-ia" onclick="solicitarAnalisisIA()">✦ Análisis IA</button>
+    </div>
+  </div>
+
+  <!-- TABS PRINCIPALES -->
+  <div class="tabs-main">
+    <div class="tab-main" data-tab="tarjetas"
+         onclick="irATab('tarjetas', 'resumen')">
+      💳 Tarjetas
+    </div>
+    <div class="tab-main" data-tab="proveedores"
+         onclick="irATab('proveedores', 'resumen')">
+      🏪 Proveedores
+    </div>
+  </div>
+
+  <!-- TABS SECUNDARIOS (se renderizan dinámicamente) -->
+  <div id="tabs-sub-container"></div>
+
+  <!-- CONTENIDO PRINCIPAL (se renderiza dinámicamente) -->
+  <div id="contenido-principal" style="padding: 10px;">
+    <div class="loading-msg">
+      <div class="spinner"></div>
+      Conectando con el Sheet...
+    </div>
+  </div>
+
+  <?!= include('SidebarScript') ?>
+</body>
+</html>

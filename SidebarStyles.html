@@ -1,0 +1,344 @@
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'Google Sans', Roboto, Arial, sans-serif;
+    font-size: 13px;
+    color: #202124;
+    background: #F8F9FA;
+    overflow-x: hidden;
+  }
+
+  /* ── HEADER ─────────────────────────────────────────── */
+  .header {
+    background: #185FA5;
+    color: white;
+    padding: 12px 14px 10px;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.18);
+  }
+  .header h1 {
+    font-size: 16px;
+    font-weight: 600;
+    letter-spacing: 0.3px;
+  }
+  .header .mes-label {
+    font-size: 11px;
+    opacity: 0.85;
+    margin-top: 1px;
+  }
+  .header-actions {
+    display: flex;
+    gap: 6px;
+    margin-top: 8px;
+  }
+  .btn-sync {
+    background: rgba(255,255,255,0.18);
+    color: white;
+    border: 1px solid rgba(255,255,255,0.35);
+    border-radius: 4px;
+    padding: 4px 10px;
+    font-size: 11px;
+    cursor: pointer;
+    flex: 1;
+  }
+  .btn-sync:hover { background: rgba(255,255,255,0.28); }
+  .btn-ia {
+    background: #4A90D9;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    padding: 4px 10px;
+    font-size: 11px;
+    cursor: pointer;
+    flex: 1;
+  }
+  .btn-ia:hover { background: #357ABD; }
+
+  /* ── TABS PRINCIPALES ───────────────────────────────── */
+  .tabs-main {
+    display: flex;
+    background: white;
+    border-bottom: 2px solid #E0E0E0;
+  }
+  .tab-main {
+    flex: 1;
+    padding: 9px 4px;
+    text-align: center;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    color: #666;
+    border-bottom: 3px solid transparent;
+    transition: all 0.15s;
+  }
+  .tab-main.active-tarjetas {
+    color: #185FA5;
+    border-bottom-color: #185FA5;
+    background: #F0F6FF;
+  }
+  .tab-main.active-proveedores {
+    color: #534AB7;
+    border-bottom-color: #534AB7;
+    background: #F2F1FF;
+  }
+
+  /* ── TABS SECUNDARIOS ───────────────────────────────── */
+  .tabs-sub {
+    display: flex;
+    background: #F8F9FA;
+    border-bottom: 1px solid #E8E8E8;
+    padding: 0 8px;
+  }
+  .tab-sub {
+    padding: 7px 10px;
+    font-size: 11px;
+    cursor: pointer;
+    color: #888;
+    border-bottom: 2px solid transparent;
+    font-weight: 500;
+  }
+  .tab-sub.active { color: #185FA5; border-bottom-color: #185FA5; }
+  .tabs-sub.proveedores-sub .tab-sub.active { color: #534AB7; border-bottom-color: #534AB7; }
+
+  /* ── SECCIONES DE CONTENIDO ─────────────────────────── */
+  .seccion { display: none; padding: 10px; }
+  .seccion.visible { display: block; }
+
+  /* ── TARJETA DE PAGO ────────────────────────────────── */
+  .pago-card {
+    background: white;
+    border-radius: 8px;
+    padding: 10px 12px;
+    margin-bottom: 8px;
+    border-left: 4px solid #DDD;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+  }
+  .pago-card.urgente  { border-left-color: #A32D2D; background: #FCEBEB; }
+  .pago-card.mora     { border-left-color: #6B0000; background: #FFD7D7; }
+  .pago-card.proximo  { border-left-color: #854F0B; background: #FAEEDA; }
+  .pago-card.pagado   { border-left-color: #3B6D11; background: #EAF3DE; opacity: 0.75; }
+  .pago-card.ok       { border-left-color: #3B6D11; }
+  .pago-card.sin-fecha { border-left-color: #AAA; background: #F5F5F5; }
+  .pago-card.incompleto { border-left-color: #999; background: #F9F9F9; }
+
+  .pago-icono {
+    width: 34px; height: 34px;
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 14px; font-weight: 700; color: white; flex-shrink: 0;
+    background: #185FA5;
+  }
+  .pago-card.isis .pago-icono  { background: #993556; }
+  .pago-card.proveedor .pago-icono { background: #534AB7; }
+
+  .pago-info { flex: 1; min-width: 0; }
+  .pago-nombre {
+    font-weight: 600; font-size: 13px;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .pago-sub {
+    font-size: 11px; color: #777; margin-top: 1px;
+  }
+  .pago-nota {
+    font-size: 10px; color: #999; margin-top: 3px;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .pago-usd-warning {
+    font-size: 10px; color: #854F0B; font-weight: 600; margin-top: 2px;
+  }
+
+  .pago-derecha { text-align: right; flex-shrink: 0; }
+  .pago-monto {
+    font-weight: 700; font-size: 14px; color: #202124;
+  }
+  .pago-badge {
+    display: inline-block;
+    font-size: 10px; font-weight: 700;
+    padding: 2px 7px; border-radius: 10px;
+    margin-top: 4px;
+  }
+  .badge-urgente { background: #A32D2D; color: white; }
+  .badge-mora    { background: #6B0000; color: white; }
+  .badge-proximo { background: #854F0B; color: white; }
+  .badge-pagado  { background: #3B6D11; color: white; }
+  .badge-ok      { background: #E0EDD0; color: #3B6D11; }
+  .badge-sinfecha { background: #E0E0E0; color: #777; }
+
+  /* ── RESUMEN CONTADORES ─────────────────────────────── */
+  .resumen-contadores {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 6px;
+    margin-bottom: 10px;
+  }
+  .contador-chip {
+    background: white;
+    border-radius: 8px;
+    padding: 8px 6px;
+    text-align: center;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+  }
+  .contador-chip .num { font-size: 20px; font-weight: 700; }
+  .contador-chip .lbl { font-size: 10px; color: #777; }
+  .chip-urgente .num { color: #A32D2D; }
+  .chip-proximo .num { color: #854F0B; }
+  .chip-pagado  .num { color: #3B6D11; }
+
+  /* ── CALENDARIO CONSOLIDADO ─────────────────────────── */
+  .calendario-dia {
+    margin-bottom: 12px;
+  }
+  .cal-fecha-header {
+    font-size: 11px;
+    font-weight: 700;
+    color: #666;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    padding: 4px 0 6px;
+    border-bottom: 1px solid #EEE;
+    margin-bottom: 6px;
+  }
+  .cal-fecha-header.hoy { color: #185FA5; }
+  .cal-fecha-header.urgente { color: #A32D2D; }
+
+  /* ── FORMULARIO AGREGAR PROVEEDOR ───────────────────── */
+  .form-section {
+    background: white;
+    border-radius: 8px;
+    padding: 14px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+  }
+  .form-section h3 {
+    font-size: 13px; font-weight: 700; color: #534AB7; margin-bottom: 12px;
+  }
+  .form-group { margin-bottom: 10px; }
+  .form-group label {
+    display: block; font-size: 11px; font-weight: 600; color: #555; margin-bottom: 4px;
+  }
+  .form-group select,
+  .form-group input {
+    width: 100%;
+    padding: 7px 9px;
+    border: 1px solid #DDD;
+    border-radius: 5px;
+    font-size: 12px;
+    color: #333;
+    background: #FAFAFA;
+    outline: none;
+  }
+  .form-group select:focus,
+  .form-group input:focus {
+    border-color: #534AB7;
+    background: white;
+    box-shadow: 0 0 0 2px rgba(83,74,183,0.12);
+  }
+  .btn-agregar {
+    width: 100%;
+    padding: 10px;
+    background: #534AB7;
+    color: white;
+    border: none;
+    border-radius: 6px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    margin-top: 6px;
+  }
+  .btn-agregar:hover { background: #433AAA; }
+  .btn-agregar:disabled { background: #B0ABDF; cursor: not-allowed; }
+
+  /* ── ANÁLISIS IA ────────────────────────────────────── */
+  .ia-box {
+    background: white;
+    border-radius: 8px;
+    padding: 12px 14px;
+    margin: 10px 0;
+    border-left: 4px solid #4A90D9;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+    font-size: 12px;
+    line-height: 1.6;
+    white-space: pre-wrap;
+  }
+  .ia-box.cargando { color: #999; font-style: italic; }
+
+  /* ── ESTADOS DE CARGA Y ERROR ───────────────────────── */
+  .loading-msg {
+    text-align: center;
+    padding: 30px 20px;
+    color: #999;
+    font-size: 12px;
+  }
+  .spinner {
+    width: 28px; height: 28px;
+    border: 3px solid #E0E0E0;
+    border-top-color: #185FA5;
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+    margin: 0 auto 10px;
+  }
+  .error-msg {
+    background: #FCEBEB;
+    border-left: 4px solid #A32D2D;
+    border-radius: 6px;
+    padding: 10px 12px;
+    font-size: 12px;
+    color: #A32D2D;
+    margin: 10px;
+  }
+  .exito-msg {
+    background: #EAF3DE;
+    border-left: 4px solid #3B6D11;
+    border-radius: 6px;
+    padding: 10px 12px;
+    font-size: 12px;
+    color: #3B6D11;
+    margin: 8px 0;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* ── SECCIÓN TÍTULO ─────────────────────────────────── */
+  .seccion-titulo {
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: #888;
+    padding: 8px 0 4px;
+    border-bottom: 1px solid #EEE;
+    margin-bottom: 8px;
+  }
+  .seccion-titulo.isis { color: #993556; }
+  .seccion-titulo.proveedores { color: #534AB7; }
+
+  /* ── TABLA DE PROVEEDORES ───────────────────────────── */
+  .proveedor-lista-item {
+    background: white;
+    border-radius: 6px;
+    padding: 9px 12px;
+    margin-bottom: 6px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.06);
+    gap: 8px;
+  }
+  .proveedor-nombre { font-weight: 600; font-size: 12px; }
+  .proveedor-cat { font-size: 10px; color: #888; }
+  .btn-pagar {
+    background: none;
+    border: 1px solid #3B6D11;
+    color: #3B6D11;
+    border-radius: 4px;
+    padding: 3px 8px;
+    font-size: 10px;
+    cursor: pointer;
+    flex-shrink: 0;
+  }
+  .btn-pagar:hover { background: #3B6D11; color: white; }
+</style>

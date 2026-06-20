@@ -1,0 +1,4 @@
+# No subir claves ni configuración local
+.env
+*.local
+.DS_Store
